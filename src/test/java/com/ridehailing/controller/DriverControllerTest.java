@@ -8,6 +8,7 @@ import com.ridehailing.dto.response.PageResponse;
 import com.ridehailing.dto.response.RideResponse;
 import com.ridehailing.exception.DuplicateResourceException;
 import com.ridehailing.exception.GlobalExceptionHandler;
+import com.ridehailing.exception.ResourceNotFoundException;
 import com.ridehailing.service.DriverService;
 import com.ridehailing.service.RideHistoryService;
 import org.junit.jupiter.api.Test;
@@ -123,5 +124,20 @@ class DriverControllerTest {
                 .andExpect(jsonPath("$.data.status").value("AVAILABLE"));
 
         verify(driverService).updateLocation(1L, 12.5, 8.0);
+    }
+
+    @Test
+    void updateLocation_unknownDriver_returns404Envelope() throws Exception {
+        when(driverService.updateLocation(42L, 12.5, 8.0))
+                .thenThrow(new ResourceNotFoundException("Driver", 42L));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .patch("/api/v1/drivers/42/location")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"x":12.5,"y":8.0}
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error.code").value("RESOURCE_NOT_FOUND"));
     }
 }

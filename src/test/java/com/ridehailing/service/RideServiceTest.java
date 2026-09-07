@@ -10,6 +10,7 @@ import com.ridehailing.dto.request.RegisterDriverRequest;
 import com.ridehailing.dto.request.RegisterUserRequest;
 import com.ridehailing.dto.request.RequestRideRequest;
 import com.ridehailing.exception.BadRequestException;
+import com.ridehailing.exception.ResourceNotFoundException;
 import com.ridehailing.matching.DistanceCalculator;
 import com.ridehailing.matching.NearestDriverStrategy;
 import com.ridehailing.repository.CouponRepository;
@@ -32,11 +33,13 @@ class RideServiceTest {
     private RideService rideService;
     private DriverService driverService;
     private UserService userService;
+    private DriverRepository driverRepository;
+    private CouponService couponService;
 
     @BeforeEach
     void setUp() {
         userService = new UserService(new UserRepository());
-        DriverRepository driverRepository = new DriverRepository();
+        driverRepository = new DriverRepository();
         driverService = new DriverService(driverRepository);
         DriverMatchingService matchingService = new DriverMatchingService(
                 driverRepository,
@@ -47,6 +50,7 @@ class RideServiceTest {
                         carType == CarType.HATCHBACK
                                 ? new BigDecimal("10")
                                 : new BigDecimal("20")));
+        couponService = new CouponService(new CouponRepository());
         rideService = new RideService(
                 userService,
                 driverService,
@@ -54,7 +58,7 @@ class RideServiceTest {
                 new RideRepository(),
                 matchingService,
                 pricingService,
-                new CouponService(new CouponRepository()),
+                couponService,
                 new DistanceCalculator());
 
         userService.register(new RegisterUserRequest("Asha", "111"));
@@ -106,6 +110,86 @@ class RideServiceTest {
         assertThat(requested.requestedCarType()).isEqualTo(CarType.HATCHBACK);
         assertThat(requested.assignedCarType()).isEqualTo(CarType.SEDAN);
         assertThat(requested.finalPayableFare()).isEqualByComparingTo("50.00");
+    }
+
+    @Test
+    void request_ignoresHatchbackOutsideRadiusBeforeSedanFallback() {
+        driverService.register(new RegisterDriverRequest("Neha", "444", "KA-3", CarType.HATCHBACK));
+        Driver hatchback = driverService.getRequired(3L);
+        hatchback.setCurrentLocation(new Location(10, 0));
+        hatchback.setStatus(DriverStatus.AVAILABLE);
+        driverRepository.save(hatchback);
+
+        var requested = rideService.requestRide(
+                1L,
+                new RequestRideRequest(0.0, 0.0, 3.0, 4.0, CarType.HATCHBACK, null));
+
+        assertThat(requested.driverId()).isEqualTo(1L);
+        assertThat(requested.assignedCarType()).isEqualTo(CarType.SEDAN);
+    }
+
+    @Test
+    void request_invalidCoupon_releasesReservedDriver() {
+        assertThatThrownBy(() -> rideService.requestRide(
+                1L,
+                new RequestRideRequest(0.0, 0.0, 1.0, 1.0, CarType.SEDAN, "INVALID")))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        var retry = rideService.requestRide(
+                1L,
+                new RequestRideRequest(0.0, 0.0, 1.0, 1.0, CarType.SEDAN, null));
+
+        assertThat(retry.driverId()).isEqualTo(1L);
+    }
+
+    @Test
+    void request_concurrentUsersReserveDifferentDrivers() throws Exception {
+        userService.register(new RegisterUserRequest("Maya", "112"));
+        Driver secondDriver = driverService.getRequired(2L);
+        secondDriver.setCurrentLocation(new Location(0, 0));
+        secondDriver.setStatus(DriverStatus.AVAILABLE);
+        driverRepository.save(secondDriver);
+
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            List<Callable<Long>> requests = List.of(
+                    () -> rideService.requestRide(
+                            1L,
+                            new RequestRideRequest(0.0, 0.0, 1.0, 1.0, CarType.SEDAN, null)).driverId(),
+                    () -> rideService.requestRide(
+                            2L,
+                            new RequestRideRequest(0.0, 0.0, 1.0, 1.0, CarType.SEDAN, null)).driverId());
+
+            var driverIds = executor.invokeAll(requests).stream()
+                    .map(future -> {
+                        try {
+                            return future.get();
+                        } catch (Exception exception) {
+                            throw new AssertionError(exception);
+                        }
+                    })
+                    .toList();
+
+            assertThat(driverIds).containsExactlyInAnyOrder(1L, 2L);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void end_recalculatesCouponDiscountAgainstFinalFare() {
+        couponService.create(new com.ridehailing.dto.request.CreateCouponRequest(
+                "SAVE10", new BigDecimal("10"), new BigDecimal("100"), 1));
+        var ride = rideService.requestRide(
+                1L, new RequestRideRequest(0.0, 0.0, 3.0, 4.0, CarType.SEDAN, "SAVE10"));
+        rideService.acceptRide(1L, ride.rideId());
+
+        var completed = rideService.endRide(
+                1L, ride.rideId(), new EndRideRequest(6.0, 8.0));
+
+        assertThat(completed.baseFare()).isEqualByComparingTo("200.00");
+        assertThat(completed.discountAmount()).isEqualByComparingTo("20.00");
+        assertThat(completed.finalPayableFare()).isEqualByComparingTo("180.00");
     }
 
     @Test

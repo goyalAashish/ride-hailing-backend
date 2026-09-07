@@ -68,47 +68,59 @@ public class RideService {
                 throw new BadRequestException("ACTIVE_RIDE_EXISTS", "User already has an active ride");
             }
 
-            Driver driver;
-            synchronized (driverReservationLock) {
-                driver = matchingService.findMatch(pickup, request.carType())
-                        .orElseThrow(() -> new BadRequestException(
-                                "NO_DRIVER_AVAILABLE", "No available driver found for requested car type"));
-                if (driver.getStatus() != DriverStatus.AVAILABLE) {
-                    throw new BadRequestException(
-                            "DRIVER_UNAVAILABLE", "Selected driver is no longer available");
+            Driver driver = null;
+            try {
+                synchronized (driverReservationLock) {
+                    driver = matchingService.findMatch(pickup, request.carType())
+                            .orElseThrow(() -> new BadRequestException(
+                                    "NO_DRIVER_AVAILABLE", "No available driver found for requested car type"));
+                    if (driver.getStatus() != DriverStatus.AVAILABLE) {
+                        throw new BadRequestException(
+                                "DRIVER_UNAVAILABLE", "Selected driver is no longer available");
+                    }
+                    driver.setStatus(DriverStatus.RESERVED);
+                    driverRepository.save(driver);
                 }
-                driver.setStatus(DriverStatus.RESERVED);
-                driverRepository.save(driver);
-            }
 
-            BigDecimal baseFare = pricingService.calculateFare(
-                    request.carType(),
-                    BigDecimal.valueOf(distanceCalculator.between(pickup, destination)));
-            BigDecimal discountAmount = ZERO_MONEY;
-            String couponCode = null;
-            if (request.couponCode() != null && !request.couponCode().isBlank()) {
-                CouponDiscount discount = couponService.apply(userId, request.couponCode(), baseFare);
-                couponCode = discount.couponCode();
-                discountAmount = discount.discountAmount();
-            }
+                BigDecimal baseFare = pricingService.calculateFare(
+                        request.carType(),
+                        BigDecimal.valueOf(distanceCalculator.between(pickup, destination)));
+                BigDecimal discountAmount = ZERO_MONEY;
+                String couponCode = null;
+                if (request.couponCode() != null && !request.couponCode().isBlank()) {
+                    CouponDiscount discount = couponService.apply(userId, request.couponCode(), baseFare);
+                    couponCode = discount.couponCode();
+                    discountAmount = discount.discountAmount();
+                }
 
-            Ride ride = new Ride();
-            ride.setUserId(userId);
-            ride.setDriverId(driver.getDriverId());
-            ride.setPickupLocation(pickup);
-            ride.setDestinationLocation(destination);
-            ride.setRequestedCarType(request.carType());
-            ride.setAssignedCarType(driver.getCarType());
-            ride.setStatus(RideStatus.REQUESTED);
-            ride.setBaseFare(baseFare);
-            ride.setAppliedCouponCode(couponCode);
-            ride.setDiscountAmount(discountAmount);
-            ride.setFinalPayableFare(
-                    baseFare.subtract(discountAmount)
-                            .max(ZERO_MONEY)
-                            .setScale(2, RoundingMode.HALF_UP));
-            ride.setCreatedAt(LocalDateTime.now());
-            return RideResponse.from(rideRepository.save(ride));
+                Ride ride = new Ride();
+                ride.setUserId(userId);
+                ride.setDriverId(driver.getDriverId());
+                ride.setPickupLocation(pickup);
+                ride.setDestinationLocation(destination);
+                ride.setRequestedCarType(request.carType());
+                ride.setAssignedCarType(driver.getCarType());
+                ride.setStatus(RideStatus.REQUESTED);
+                ride.setBaseFare(baseFare);
+                ride.setAppliedCouponCode(couponCode);
+                ride.setDiscountAmount(discountAmount);
+                ride.setFinalPayableFare(
+                        baseFare.subtract(discountAmount)
+                                .max(ZERO_MONEY)
+                                .setScale(2, RoundingMode.HALF_UP));
+                ride.setCreatedAt(LocalDateTime.now());
+                return RideResponse.from(rideRepository.save(ride));
+            } catch (RuntimeException exception) {
+                if (driver != null) {
+                    synchronized (driverReservationLock) {
+                        if (driver.getStatus() == DriverStatus.RESERVED) {
+                            driver.setStatus(DriverStatus.AVAILABLE);
+                            driverRepository.save(driver);
+                        }
+                    }
+                }
+                throw exception;
+            }
         }
     }
 
