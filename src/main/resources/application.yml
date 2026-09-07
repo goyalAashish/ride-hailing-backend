@@ -1,0 +1,16 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: ride-hailing-backend
+
+logging:
+  level:
+    com.ridehailing: INFO
+
+ride-hailing:
+  matching:
+    search-radius-km: 5.0
+  pricing:
+    minimum-fare-floor: 50.00
