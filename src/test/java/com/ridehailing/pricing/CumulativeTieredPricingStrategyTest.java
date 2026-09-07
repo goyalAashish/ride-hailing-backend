@@ -26,6 +26,23 @@ class CumulativeTieredPricingStrategyTest {
     }
 
     @Test
+    void calculateFare_usesCarTypeSpecificRates() {
+        PricingProperties properties = new PricingProperties();
+        properties.setMinimumFareFloor(BigDecimal.ZERO);
+        EnumMap<CarType, List<PricingTier>> configuredTiers = new EnumMap<>(CarType.class);
+        configuredTiers.put(CarType.SEDAN, List.of(new PricingTier(null, new BigDecimal("12"))));
+        configuredTiers.put(CarType.HATCHBACK, List.of(new PricingTier(null, new BigDecimal("10"))));
+        properties.setTiers(configuredTiers);
+
+        CumulativeTieredPricingStrategy strategy = new CumulativeTieredPricingStrategy(properties);
+
+        assertThat(strategy.calculateFare(CarType.SEDAN, new BigDecimal("5")))
+                .isEqualByComparingTo("60.00");
+        assertThat(strategy.calculateFare(CarType.HATCHBACK, new BigDecimal("5")))
+                .isEqualByComparingTo("50.00");
+    }
+
+    @Test
     void calculateFare_usesEachTierBoundaryCorrectly() {
         CumulativeTieredPricingStrategy strategy = strategy(
                 BigDecimal.ZERO,

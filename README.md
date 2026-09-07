@@ -90,6 +90,10 @@ Ride request body:
 
 ### Driver APIs
 
+Drivers must have an active WebSocket presence connection before they can be
+matched. A REST location update only changes coordinates; it does not mark a
+driver as available.
+
 | Method | Path | Identity | Purpose |
 |---|---|---|---|
 | POST | `/api/v1/drivers` | None | Register a driver and vehicle |
@@ -129,8 +133,8 @@ deterministic tie breakers.
 Area demand/supply can be configured with
 `PUT /api/v1/admin/surge/areas/{area}` and `{ "demand": 3, "supply": 1 }`.
 The pluggable surge strategy applies a capped `max(1, demand / supply)`
-multiplier to the request fare. Cancellation is allowed for active rides,
-releases the reserved driver, and is free during the configured
+multiplier to the request fare. Cancellation is allowed before a ride becomes
+ongoing, releases the reserved driver, and is free during the configured
 `ride-hailing.cancellation.free-window-seconds`; later cancellations use the
 configured fee.
 
@@ -178,7 +182,8 @@ stateDiagram-v2
 ```
 
 The current acceptance endpoint completes the `ASSIGNED` transition atomically
-and exposes the ride as `ONGOING` after a successful acceptance.
+and exposes the ride as `ONGOING` after a successful acceptance. Ongoing rides
+cannot be cancelled by the current policy.
 
 ## Matching and pricing
 
@@ -272,8 +277,8 @@ auditable coupon redemption records, and idempotent payment integration.
    selected strategy bean.
 2. Add new `CarType` values and corresponding pricing tiers in `application.yml`.
 3. Add a repository method and service query for new history filters.
-4. Add ride cancellation with a guarded `REQUESTED`/`ONGOING` transition and
-   an explicit refund/coupon policy.
+4. Extend cancellation to ongoing rides with an explicit refund/coupon policy
+   if post-acceptance cancellation is required.
 5. Replace the in-memory repositories behind their existing service contracts
    without changing controller payloads.
 6. Add authentication at the controller boundary while preserving service-level
