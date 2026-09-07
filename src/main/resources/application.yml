@@ -12,6 +12,11 @@ logging:
 ride-hailing:
   matching:
     search-radius-km: 5.0
+  surge:
+    maximum-multiplier: 3.0
+  cancellation:
+    free-window-seconds: 120
+    fee: 30.00
   pricing:
     minimum-fare-floor: 50.00
     tiers:

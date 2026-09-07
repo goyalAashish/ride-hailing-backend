@@ -17,6 +17,8 @@ public class Driver {
     private Vehicle vehicle;
     private DriverStatus status = DriverStatus.OFFLINE;
     private Location currentLocation;
+    private double rating = 5.0;
+    private int ratingCount;
 
     public Driver() {
     }
@@ -88,6 +90,32 @@ public class Driver {
 
     public void setCurrentLocation(Location currentLocation) {
         this.currentLocation = currentLocation;
+    }
+
+    public synchronized double getRating() {
+        return rating;
+    }
+
+    public synchronized int getRatingCount() {
+        return ratingCount;
+    }
+
+    public synchronized double getAverageRating() {
+        return rating;
+    }
+
+    public synchronized void setRating(double rating) {
+        if (!Double.isFinite(rating) || rating < 1.0 || rating > 5.0) {
+            throw new IllegalArgumentException("rating must be between 1 and 5");
+        }
+        this.rating = rating;
+    }
+
+    public synchronized void addRating(double value) {
+        if (!Double.isFinite(value) || value < 1.0 || value > 5.0) {
+            throw new IllegalArgumentException("rating must be between 1 and 5");
+        }
+        rating = ((rating * ratingCount) + value) / (++ratingCount);
     }
 
     @Override

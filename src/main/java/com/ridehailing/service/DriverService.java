@@ -67,4 +67,12 @@ public class DriverService {
             return DriverResponse.from(driverRepository.save(driver));
         }
     }
+
+    public DriverResponse rateDriver(Long driverId, double rating) {
+        Driver driver = getRequired(driverId);
+        synchronized (driver) {
+            driver.addRating(rating);
+            return DriverResponse.from(driverRepository.save(driver));
+        }
+    }
 }

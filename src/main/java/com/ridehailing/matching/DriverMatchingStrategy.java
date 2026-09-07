@@ -9,6 +9,10 @@ import java.util.Optional;
 
 public interface DriverMatchingStrategy {
 
+    default String name() {
+        return getClass().getSimpleName().replace("DriverStrategy", "").toUpperCase();
+    }
+
     Optional<Driver> match(
             Location pickupLocation,
             CarType requestedCarType,

@@ -2,6 +2,7 @@ package com.ridehailing.controller;
 
 import com.ridehailing.dto.request.EndRideRequest;
 import com.ridehailing.dto.request.RequestRideRequest;
+import com.ridehailing.dto.request.CancelRideRequest;
 import com.ridehailing.dto.response.ApiResponse;
 import com.ridehailing.dto.response.RideResponse;
 import com.ridehailing.service.RideService;
@@ -50,5 +51,24 @@ public class RideController {
         return ResponseEntity.ok(ApiResponse.success(
                 "Ride completed successfully",
                 rideService.endRide(driverId, rideId, request)));
+    }
+
+    @PostMapping("/{rideId}/cancel")
+    public ResponseEntity<ApiResponse<RideResponse>> cancelRide(
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @RequestHeader(value = "X-Driver-Id", required = false) Long driverId,
+            @PathVariable Long rideId,
+            @RequestBody(required = false) CancelRideRequest request) {
+        if (userId != null && driverId != null || userId == null && driverId == null) {
+            throw new com.ridehailing.exception.BadRequestException(
+                    "INVALID_CANCELLATION_ACTOR",
+                    "Provide exactly one of X-User-Id or X-Driver-Id");
+        }
+        RideResponse response = userId != null
+                ? rideService.cancelRide(userId, rideId, request)
+                : rideService.cancelRideAsDriver(driverId, rideId, request);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Ride cancelled successfully",
+                response));
     }
 }

@@ -96,6 +96,7 @@ Ride request body:
 | PATCH | `/api/v1/drivers/{driverId}/location` | None | Update the driver's current coordinates |
 | POST | `/api/v1/rides/{rideId}/accept` | `X-Driver-Id` | Accept a matched ride |
 | POST | `/api/v1/rides/{rideId}/end` | `X-Driver-Id` | Complete a ride |
+| POST | `/api/v1/rides/{rideId}/cancel` | `X-User-Id` | Cancel an active ride |
 | GET | `/api/v1/drivers/rides/history?page=0&size=10` | `X-Driver-Id` | View rides from the last 2 days |
 
 Ride completion body:
@@ -116,6 +117,22 @@ Ride completion body:
 
 Coupon codes are normalized to uppercase. Coupon usage is tracked per user and
 enforced atomically in memory.
+
+### Matching, ratings, surge, and cancellation
+
+`PUT /api/v1/admin/matching-strategy` switches between `NEAREST` and
+`HIGHEST_RATED` at runtime (the response remains wrapped in `ApiResponse`).
+Drivers can receive a 1–5 rating through `POST /api/v1/drivers/{id}/rating`;
+the matching strategy uses the running average, then distance and driver ID as
+deterministic tie breakers.
+
+Area demand/supply can be configured with
+`PUT /api/v1/admin/surge/areas/{area}` and `{ "demand": 3, "supply": 1 }`.
+The pluggable surge strategy applies a capped `max(1, demand / supply)`
+multiplier to the request fare. Cancellation is allowed for active rides,
+releases the reserved driver, and is free during the configured
+`ride-hailing.cancellation.free-window-seconds`; later cancellations use the
+configured fee.
 
 ### Driver presence
 

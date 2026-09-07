@@ -25,8 +25,12 @@ public class Ride {
     private String appliedCouponCode;
     private BigDecimal discountAmount;
     private BigDecimal finalPayableFare;
+    private BigDecimal surgeMultiplier = BigDecimal.ONE.setScale(2);
     private LocalDateTime createdAt;
     private LocalDateTime completedAt;
+    private LocalDateTime cancelledAt;
+    private BigDecimal cancellationFee = BigDecimal.ZERO.setScale(2);
+    private String cancellationReason;
 
     public Ride() {
     }
@@ -127,6 +131,14 @@ public class Ride {
         this.finalPayableFare = finalPayableFare;
     }
 
+    public BigDecimal getSurgeMultiplier() {
+        return surgeMultiplier;
+    }
+
+    public void setSurgeMultiplier(BigDecimal surgeMultiplier) {
+        this.surgeMultiplier = surgeMultiplier;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -141,6 +153,30 @@ public class Ride {
 
     public void setCompletedAt(LocalDateTime completedAt) {
         this.completedAt = completedAt;
+    }
+
+    public LocalDateTime getCancelledAt() {
+        return cancelledAt;
+    }
+
+    public void setCancelledAt(LocalDateTime cancelledAt) {
+        this.cancelledAt = cancelledAt;
+    }
+
+    public BigDecimal getCancellationFee() {
+        return cancellationFee;
+    }
+
+    public void setCancellationFee(BigDecimal cancellationFee) {
+        this.cancellationFee = cancellationFee;
+    }
+
+    public String getCancellationReason() {
+        return cancellationReason;
+    }
+
+    public void setCancellationReason(String cancellationReason) {
+        this.cancellationReason = cancellationReason;
     }
 
     @Override

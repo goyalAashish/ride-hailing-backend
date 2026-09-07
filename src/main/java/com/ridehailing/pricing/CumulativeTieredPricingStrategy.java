@@ -24,6 +24,11 @@ public class CumulativeTieredPricingStrategy implements PricingStrategy {
 
     @Override
     public BigDecimal calculateFare(CarType carType, BigDecimal distance) {
+        return applyMinimumFare(calculateFareBeforeMinimum(carType, distance));
+    }
+
+    @Override
+    public BigDecimal calculateFareBeforeMinimum(CarType carType, BigDecimal distance) {
         Objects.requireNonNull(carType, "car type is required");
         Objects.requireNonNull(distance, "distance is required");
         validateDistance(distance);
@@ -34,9 +39,14 @@ public class CumulativeTieredPricingStrategy implements PricingStrategy {
         }
 
         validateTiers(tiers);
-        BigDecimal calculatedFare = calculateTieredFare(tiers, distance);
+        return calculateTieredFare(tiers, distance)
+                .setScale(MONEY_SCALE, MONEY_ROUNDING);
+    }
+
+    @Override
+    public BigDecimal applyMinimumFare(BigDecimal fare) {
         BigDecimal minimumFare = requireNonNegative(properties.getMinimumFareFloor(), "minimum fare floor");
-        return calculatedFare.max(minimumFare).setScale(MONEY_SCALE, MONEY_ROUNDING);
+        return fare.max(minimumFare).setScale(MONEY_SCALE, MONEY_ROUNDING);
     }
 
     private BigDecimal calculateTieredFare(List<PricingTier> tiers, BigDecimal distance) {
