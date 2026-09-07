@@ -20,6 +20,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,10 +31,11 @@ class RideServiceTest {
 
     private RideService rideService;
     private DriverService driverService;
+    private UserService userService;
 
     @BeforeEach
     void setUp() {
-        UserService userService = new UserService(new UserRepository());
+        userService = new UserService(new UserRepository());
         DriverRepository driverRepository = new DriverRepository();
         driverService = new DriverService(driverRepository);
         DriverMatchingService matchingService = new DriverMatchingService(
@@ -114,5 +118,44 @@ class RideServiceTest {
         assertThatThrownBy(() -> rideService.endRide(1L, ride.rideId(), new EndRideRequest(2.0, 2.0)))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("ongoing");
+    }
+
+    @Test
+    void accept_concurrentRequestsToSameDriver_allowOnlyOneRide() throws Exception {
+        userService.register(new RegisterUserRequest("Maya", "112"));
+        var first = rideService.requestRide(
+                1L, new RequestRideRequest(0.0, 0.0, 1.0, 1.0, CarType.SEDAN, null));
+        var second = rideService.requestRide(
+                2L, new RequestRideRequest(0.0, 0.0, 2.0, 2.0, CarType.SEDAN, null));
+
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            List<Callable<Boolean>> attempts = List.of(
+                    () -> acceptSuccessfully(1L, first.rideId()),
+                    () -> acceptSuccessfully(1L, second.rideId()));
+
+            long successfulAccepts = executor.invokeAll(attempts).stream()
+                    .filter(future -> {
+                        try {
+                            return future.get();
+                        } catch (Exception exception) {
+                            throw new AssertionError(exception);
+                        }
+                    })
+                    .count();
+
+            assertThat(successfulAccepts).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private boolean acceptSuccessfully(Long driverId, Long rideId) {
+        try {
+            rideService.acceptRide(driverId, rideId);
+            return true;
+        } catch (BadRequestException exception) {
+            return false;
+        }
     }
 }

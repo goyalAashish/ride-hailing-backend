@@ -11,6 +11,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -72,5 +75,46 @@ class CouponServiceTest {
     void apply_rejectsUnknownCoupon() {
         assertThatThrownBy(() -> couponService.apply(1L, "UNKNOWN", new BigDecimal("100")))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void apply_rejectsInvalidFare() {
+        couponService.create(new CreateCouponRequest("SAVE10", new BigDecimal("10"), new BigDecimal("50"), 1));
+
+        assertThatThrownBy(() -> couponService.apply(1L, "SAVE10", new BigDecimal("-1")))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("non-negative");
+    }
+
+    @Test
+    void apply_concurrentUsageRespectsPerUserLimit() throws Exception {
+        couponService.create(new CreateCouponRequest("SAVE10", new BigDecimal("10"), new BigDecimal("50"), 1));
+        var executor = Executors.newFixedThreadPool(4);
+        try {
+            List<Callable<Boolean>> attempts = java.util.stream.IntStream.range(0, 4)
+                    .<Callable<Boolean>>mapToObj(ignored -> () -> {
+                        try {
+                            couponService.apply(1L, "SAVE10", new BigDecimal("100"));
+                            return true;
+                        } catch (BadRequestException exception) {
+                            return false;
+                        }
+                    })
+                    .toList();
+
+            long successfulApplications = executor.invokeAll(attempts).stream()
+                    .filter(future -> {
+                        try {
+                            return future.get();
+                        } catch (Exception exception) {
+                            throw new AssertionError(exception);
+                        }
+                    })
+                    .count();
+
+            assertThat(successfulApplications).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 }

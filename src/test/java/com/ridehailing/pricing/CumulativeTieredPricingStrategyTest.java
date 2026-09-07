@@ -26,6 +26,20 @@ class CumulativeTieredPricingStrategyTest {
     }
 
     @Test
+    void calculateFare_usesEachTierBoundaryCorrectly() {
+        CumulativeTieredPricingStrategy strategy = strategy(
+                BigDecimal.ZERO,
+                List.of(
+                        new PricingTier(new BigDecimal("5"), new BigDecimal("10")),
+                        new PricingTier(null, new BigDecimal("8"))));
+
+        assertThat(strategy.calculateFare(CarType.SEDAN, new BigDecimal("5")))
+                .isEqualByComparingTo("50.00");
+        assertThat(strategy.calculateFare(CarType.SEDAN, new BigDecimal("6")))
+                .isEqualByComparingTo("58.00");
+    }
+
+    @Test
     void calculateFare_appliesMinimumFareFloorBeforeScaling() {
         CumulativeTieredPricingStrategy strategy = strategy(
                 new BigDecimal("50"),
@@ -66,6 +80,20 @@ class CumulativeTieredPricingStrategyTest {
 
         assertThatThrownBy(() -> strategy.calculateFare(CarType.SEDAN, new BigDecimal("-1")))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void calculateFare_rejectsInvalidTierOrdering() {
+        CumulativeTieredPricingStrategy strategy = strategy(
+                BigDecimal.ZERO,
+                List.of(
+                        new PricingTier(new BigDecimal("10"), new BigDecimal("10")),
+                        new PricingTier(new BigDecimal("5"), new BigDecimal("8")),
+                        new PricingTier(null, new BigDecimal("6"))));
+
+        assertThatThrownBy(() -> strategy.calculateFare(CarType.SEDAN, new BigDecimal("1")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("increasing");
     }
 
     private static CumulativeTieredPricingStrategy strategy(

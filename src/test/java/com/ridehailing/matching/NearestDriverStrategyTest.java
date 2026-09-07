@@ -47,6 +47,16 @@ class NearestDriverStrategyTest {
     }
 
     @Test
+    void match_breaksEqualDistanceTiesByDriverId() {
+        Driver lowerId = driver(1L, CarType.SEDAN, new Location(1, 0));
+        Driver higherId = driver(2L, CarType.SEDAN, new Location(-1, 0));
+
+        assertThat(strategy.match(
+                new Location(0, 0), CarType.SEDAN, List.of(higherId, lowerId), 5.0))
+                .containsSame(lowerId);
+    }
+
+    @Test
     void match_returnsEmptyWhenNoDriverHasLocationOrIsNearby() {
         Driver missingLocation = driver(1L, CarType.SEDAN, null);
         Driver outsideRadius = driver(2L, CarType.SEDAN, new Location(6, 0));
