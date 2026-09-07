@@ -2,6 +2,7 @@ package com.ridehailing.service;
 
 import com.ridehailing.domain.Driver;
 import com.ridehailing.domain.Vehicle;
+import com.ridehailing.domain.enums.DriverStatus;
 import com.ridehailing.dto.request.RegisterDriverRequest;
 import com.ridehailing.dto.response.DriverResponse;
 import com.ridehailing.exception.DuplicateResourceException;
@@ -38,5 +39,19 @@ public class DriverService {
     public Driver getRequired(Long driverId) {
         return driverRepository.findById(driverId)
                 .orElseThrow(() -> new ResourceNotFoundException("Driver", driverId));
+    }
+
+    public void markAvailable(Long driverId) {
+        Driver driver = getRequired(driverId);
+        synchronized (driver) {
+            driver.setStatus(DriverStatus.AVAILABLE);
+        }
+    }
+
+    public void markOffline(Long driverId) {
+        Driver driver = getRequired(driverId);
+        synchronized (driver) {
+            driver.setStatus(DriverStatus.OFFLINE);
+        }
     }
 }

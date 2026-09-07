@@ -14,3 +14,22 @@ ride-hailing:
     search-radius-km: 5.0
   pricing:
     minimum-fare-floor: 50.00
+    tiers:
+      HATCHBACK:
+        - max-distance: 5
+          rate-per-distance: 10.00
+        - max-distance: 10
+          rate-per-distance: 8.00
+        - rate-per-distance: 6.00
+      SEDAN:
+        - max-distance: 5
+          rate-per-distance: 12.00
+        - max-distance: 10
+          rate-per-distance: 10.00
+        - rate-per-distance: 8.00
+      SUV:
+        - max-distance: 5
+          rate-per-distance: 15.00
+        - max-distance: 10
+          rate-per-distance: 12.00
+        - rate-per-distance: 10.00

@@ -60,4 +60,15 @@ class DriverServiceTest {
         assertThatThrownBy(() -> driverService.getRequired(9L))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
+
+    @Test
+    void presenceTransitions_updateDriverStatus() {
+        driverService.register(new RegisterDriverRequest("Ravi", "888", "KA-1", CarType.SEDAN));
+
+        driverService.markAvailable(1L);
+        assertThat(driverService.getRequired(1L).getStatus()).isEqualTo(DriverStatus.AVAILABLE);
+
+        driverService.markOffline(1L);
+        assertThat(driverService.getRequired(1L).getStatus()).isEqualTo(DriverStatus.OFFLINE);
+    }
 }
