@@ -1,6 +1,9 @@
 package com.ridehailing.websocket;
 
 import com.ridehailing.service.DriverService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
@@ -15,9 +18,15 @@ public class DriverPresenceWebSocketHandler extends TextWebSocketHandler {
     private static final String DRIVER_PATH_PREFIX = "/ws/driver/";
 
     private final DriverService driverService;
+    private final ObjectMapper objectMapper;
 
     public DriverPresenceWebSocketHandler(DriverService driverService) {
+        this(driverService, new ObjectMapper());
+    }
+
+    public DriverPresenceWebSocketHandler(DriverService driverService, ObjectMapper objectMapper) {
         this.driverService = driverService;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -28,6 +37,22 @@ public class DriverPresenceWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         driverService.markOffline(driverIdFrom(session));
+    }
+
+    @Override
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+        JsonNode payload = objectMapper.readTree(message.getPayload());
+        if (!"LOCATION_UPDATE".equals(payload.path("type").asText())
+                || !payload.has("x")
+                || !payload.has("y")
+                || !payload.get("x").isNumber()
+                || !payload.get("y").isNumber()) {
+            throw new IllegalArgumentException("Location update must contain numeric x and y coordinates");
+        }
+        driverService.updateLocation(
+                driverIdFrom(session),
+                payload.get("x").doubleValue(),
+                payload.get("y").doubleValue());
     }
 
     private Long driverIdFrom(WebSocketSession session) {

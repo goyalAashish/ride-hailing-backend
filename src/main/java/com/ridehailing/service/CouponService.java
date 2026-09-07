@@ -75,14 +75,31 @@ public class CouponService {
             }
 
             usage.incrementAndGet();
-            BigDecimal discount = baseFare
-                    .multiply(coupon.getDiscountPercentage())
-                    .divide(new BigDecimal("100"), 10, MONEY_ROUNDING)
-                    .min(coupon.getMaxDiscountAmount())
-                    .min(baseFare)
-                    .setScale(MONEY_SCALE, MONEY_ROUNDING);
-            return new CouponDiscount(normalizedCode, discount);
+            return new CouponDiscount(normalizedCode, calculateDiscountAmount(coupon, baseFare));
         }
+    }
+
+    public BigDecimal calculateDiscount(Long userId, String code, BigDecimal baseFare) {
+        if (userId == null) {
+            throw new BadRequestException("INVALID_USER", "User id is required to apply a coupon");
+        }
+        if (baseFare == null || baseFare.signum() < 0) {
+            throw new BadRequestException("INVALID_FARE", "Base fare must be non-negative");
+        }
+        Coupon coupon = getRequired(code);
+        if (!coupon.isActive()) {
+            throw new BadRequestException("COUPON_INACTIVE", "Coupon is inactive: " + coupon.getCode());
+        }
+        return calculateDiscountAmount(coupon, baseFare);
+    }
+
+    private BigDecimal calculateDiscountAmount(Coupon coupon, BigDecimal baseFare) {
+        return baseFare
+                .multiply(coupon.getDiscountPercentage())
+                .divide(new BigDecimal("100"), 10, MONEY_ROUNDING)
+                .min(coupon.getMaxDiscountAmount())
+                .min(baseFare)
+                .setScale(MONEY_SCALE, MONEY_ROUNDING);
     }
 
     private Coupon getRequired(String code) {

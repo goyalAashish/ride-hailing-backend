@@ -2,7 +2,8 @@ package com.ridehailing.domain.enums;
 
 /**
  * Driver presence / trip state machine:
- * {@code OFFLINE → AVAILABLE → IN_RIDE_PICKUP → IN_RIDE_ONROUTE → IN_RIDE_ARRIVED → AVAILABLE}.
+ * {@code OFFLINE → AVAILABLE → RESERVED → IN_RIDE_PICKUP → IN_RIDE_ONROUTE
+ * → IN_RIDE_ARRIVED → AVAILABLE}.
  * <p>
  * WebSocket connect at {@code /ws/driver/{driverId}} moves a driver to {@link #AVAILABLE};
  * disconnect forces {@link #OFFLINE}.
@@ -10,6 +11,7 @@ package com.ridehailing.domain.enums;
 public enum DriverStatus {
     OFFLINE,
     AVAILABLE,
+    RESERVED,
     IN_RIDE_PICKUP,
     IN_RIDE_ONROUTE,
     IN_RIDE_ARRIVED;

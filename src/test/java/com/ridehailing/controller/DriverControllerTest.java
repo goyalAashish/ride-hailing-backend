@@ -3,6 +3,7 @@ package com.ridehailing.controller;
 import com.ridehailing.domain.enums.CarType;
 import com.ridehailing.domain.enums.DriverStatus;
 import com.ridehailing.dto.response.DriverResponse;
+import com.ridehailing.dto.request.UpdateLocationRequest;
 import com.ridehailing.dto.response.PageResponse;
 import com.ridehailing.dto.response.RideResponse;
 import com.ridehailing.exception.DuplicateResourceException;
@@ -19,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -102,5 +104,24 @@ class DriverControllerTest {
                 .andExpect(jsonPath("$.data.page").value(0))
                 .andExpect(jsonPath("$.data.size").value(10))
                 .andExpect(jsonPath("$.data.content").isEmpty());
+    }
+
+    @Test
+    void updateLocation_returnsUpdatedDriver() throws Exception {
+        when(driverService.updateLocation(1L, 12.5, 8.0))
+                .thenReturn(new DriverResponse(1L, "Ravi", "888", "KA-01-AA-1111",
+                        CarType.SEDAN, DriverStatus.AVAILABLE));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .patch("/api/v1/drivers/1/location")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"x":12.5,"y":8.0}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.driverId").value(1))
+                .andExpect(jsonPath("$.data.status").value("AVAILABLE"));
+
+        verify(driverService).updateLocation(1L, 12.5, 8.0);
     }
 }

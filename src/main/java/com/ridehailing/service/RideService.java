@@ -17,6 +17,7 @@ import com.ridehailing.repository.RideRepository;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -36,6 +37,7 @@ public class RideService {
     private final DistanceCalculator distanceCalculator;
     private final ConcurrentMap<Long, Object> userLocks = new ConcurrentHashMap<>();
     private final ConcurrentMap<Long, Object> driverLocks = new ConcurrentHashMap<>();
+    private final Object driverReservationLock = new Object();
 
     public RideService(
             UserService userService,
@@ -66,9 +68,18 @@ public class RideService {
                 throw new BadRequestException("ACTIVE_RIDE_EXISTS", "User already has an active ride");
             }
 
-            Driver driver = matchingService.findMatch(pickup, request.carType())
-                    .orElseThrow(() -> new BadRequestException(
-                            "NO_DRIVER_AVAILABLE", "No available driver found for requested car type"));
+            Driver driver;
+            synchronized (driverReservationLock) {
+                driver = matchingService.findMatch(pickup, request.carType())
+                        .orElseThrow(() -> new BadRequestException(
+                                "NO_DRIVER_AVAILABLE", "No available driver found for requested car type"));
+                if (driver.getStatus() != DriverStatus.AVAILABLE) {
+                    throw new BadRequestException(
+                            "DRIVER_UNAVAILABLE", "Selected driver is no longer available");
+                }
+                driver.setStatus(DriverStatus.RESERVED);
+                driverRepository.save(driver);
+            }
 
             BigDecimal baseFare = pricingService.calculateFare(
                     request.carType(),
@@ -92,7 +103,10 @@ public class RideService {
             ride.setBaseFare(baseFare);
             ride.setAppliedCouponCode(couponCode);
             ride.setDiscountAmount(discountAmount);
-            ride.setFinalPayableFare(baseFare.subtract(discountAmount).max(ZERO_MONEY).setScale(2));
+            ride.setFinalPayableFare(
+                    baseFare.subtract(discountAmount)
+                            .max(ZERO_MONEY)
+                            .setScale(2, RoundingMode.HALF_UP));
             ride.setCreatedAt(LocalDateTime.now());
             return RideResponse.from(rideRepository.save(ride));
         }
@@ -109,7 +123,7 @@ public class RideService {
             if (ride.getStatus() != RideStatus.REQUESTED) {
                 throw new BadRequestException("INVALID_RIDE_STATE", "Only requested rides can be accepted");
             }
-            if (driver.getStatus() != DriverStatus.AVAILABLE) {
+            if (driver.getStatus() != DriverStatus.RESERVED) {
                 throw new BadRequestException("DRIVER_UNAVAILABLE", "Driver is not available");
             }
 
@@ -136,6 +150,21 @@ public class RideService {
             }
 
             ride.setDestinationLocation(destination);
+            BigDecimal actualDistance = BigDecimal.valueOf(
+                    distanceCalculator.between(ride.getPickupLocation(), destination));
+            BigDecimal adjustedBaseFare = pricingService.calculateFare(
+                    ride.getRequestedCarType(), actualDistance);
+            BigDecimal discountAmount = ZERO_MONEY;
+            if (ride.getAppliedCouponCode() != null) {
+                discountAmount = couponService.calculateDiscount(
+                        ride.getUserId(), ride.getAppliedCouponCode(), adjustedBaseFare);
+            }
+            ride.setBaseFare(adjustedBaseFare);
+            ride.setDiscountAmount(discountAmount);
+            ride.setFinalPayableFare(
+                    adjustedBaseFare.subtract(discountAmount)
+                            .max(ZERO_MONEY)
+                            .setScale(2, RoundingMode.HALF_UP));
             ride.setStatus(RideStatus.COMPLETED);
             ride.setCompletedAt(LocalDateTime.now());
             driver.setCurrentLocation(destination);

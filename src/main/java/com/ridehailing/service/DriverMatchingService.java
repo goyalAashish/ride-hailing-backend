@@ -31,9 +31,7 @@ public class DriverMatchingService {
         return matchingStrategy.match(
                 pickupLocation,
                 requestedCarType,
-                driverRepository.findByStatusAndCarType(
-                        DriverStatus.AVAILABLE,
-                        requestedCarType),
+                driverRepository.findByStatus(DriverStatus.AVAILABLE),
                 searchRadius);
     }
 }

@@ -31,6 +31,19 @@ public class NearestDriverStrategy implements DriverMatchingStrategy {
         Objects.requireNonNull(candidateDrivers, "candidate drivers are required");
         validateSearchRadius(searchRadius);
 
+        Optional<Driver> exactMatch = findNearest(
+                pickupLocation, requestedCarType, candidateDrivers, searchRadius);
+        if (exactMatch.isPresent() || requestedCarType != CarType.HATCHBACK) {
+            return exactMatch;
+        }
+        return findNearest(pickupLocation, CarType.SEDAN, candidateDrivers, searchRadius);
+    }
+
+    private Optional<Driver> findNearest(
+            Location pickupLocation,
+            CarType requestedCarType,
+            Collection<Driver> candidateDrivers,
+            double searchRadius) {
         return candidateDrivers.stream()
                 .filter(driver -> isEligible(driver, requestedCarType))
                 .map(driver -> new DriverDistance(

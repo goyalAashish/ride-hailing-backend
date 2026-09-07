@@ -93,6 +93,7 @@ Ride request body:
 | Method | Path | Identity | Purpose |
 |---|---|---|---|
 | POST | `/api/v1/drivers` | None | Register a driver and vehicle |
+| PATCH | `/api/v1/drivers/{driverId}/location` | None | Update the driver's current coordinates |
 | POST | `/api/v1/rides/{rideId}/accept` | `X-Driver-Id` | Accept a matched ride |
 | POST | `/api/v1/rides/{rideId}/end` | `X-Driver-Id` | Complete a ride |
 | GET | `/api/v1/drivers/rides/history?page=0&size=10` | `X-Driver-Id` | View rides from the last 2 days |
@@ -127,6 +128,16 @@ ws://localhost:8080/ws/driver/{driverId}
 Connection sets the driver to `AVAILABLE`; disconnection sets the driver to
 `OFFLINE`. The driver must be connected before it can be matched.
 
+Connected drivers may also send live location frames:
+
+```json
+{
+  "type": "LOCATION_UPDATE",
+  "x": 12.5,
+  "y": 8.0
+}
+```
+
 ## State machines
 
 ```mermaid
@@ -160,9 +171,10 @@ Matching uses Euclidean distance:
 distance = sqrt((x2 - x1)^2 + (y2 - y1)^2)
 ```
 
-`NearestDriverStrategy` considers only available drivers with the requested car
-type, a known location, and a distance within the configured search radius.
-Equal-distance matches are resolved by driver ID for deterministic behavior.
+`NearestDriverStrategy` considers available drivers with a known location and a
+distance within the configured search radius. Equal-distance matches are resolved
+by driver ID for deterministic behavior. A Hatchback request falls back to a
+Sedan when no Hatchback is available; the fare still uses Hatchback pricing.
 
 Pricing uses cumulative distance tiers. Example configuration:
 
@@ -187,13 +199,15 @@ For a 12-unit Sedan trip, the calculation is:
 (5 × 12) + (5 × 10) + (2 × 8) = 102.00
 ```
 
-The minimum fare is applied before coupon discounts. Coupons apply a percentage
+The minimum fare is applied before coupon discounts. The fare is recalculated
+from the actual destination when the ride ends. Coupons apply a percentage
 discount capped by `maxDiscountAmount`, and the payable fare cannot be negative.
 
 ## Concurrency and consistency
 
 - Repository maps are concurrent.
 - User locks prevent multiple active rides from being created concurrently.
+- Driver reservation locks prevent multiple requests from selecting the same driver.
 - Driver locks serialize competing acceptance requests.
 - Coupon usage counters are synchronized per user and coupon.
 - Completed ride receipts are not reopened or edited by lifecycle operations.

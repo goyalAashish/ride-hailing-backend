@@ -1,6 +1,7 @@
 package com.ridehailing.controller;
 
 import com.ridehailing.dto.request.RegisterDriverRequest;
+import com.ridehailing.dto.request.UpdateLocationRequest;
 import com.ridehailing.dto.response.ApiResponse;
 import com.ridehailing.dto.response.DriverResponse;
 import com.ridehailing.dto.response.PageResponse;
@@ -10,6 +11,8 @@ import com.ridehailing.service.RideHistoryService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -33,6 +36,15 @@ public class DriverController {
     public ResponseEntity<ApiResponse<DriverResponse>> register(@Valid @RequestBody RegisterDriverRequest request) {
         DriverResponse data = driverService.register(request);
         return ResponseEntity.ok(ApiResponse.success("Driver registered successfully", data));
+    }
+
+    @PatchMapping("/{driverId}/location")
+    public ResponseEntity<ApiResponse<DriverResponse>> updateLocation(
+            @PathVariable Long driverId,
+            @Valid @RequestBody UpdateLocationRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Driver location updated successfully",
+                driverService.updateLocation(driverId, request.x(), request.y())));
     }
 
     @GetMapping("/rides/history")

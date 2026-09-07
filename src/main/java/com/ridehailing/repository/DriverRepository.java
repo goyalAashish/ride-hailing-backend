@@ -76,6 +76,12 @@ public class DriverRepository extends InMemoryLongIdRepository<Driver> {
                 .toList();
     }
 
+    public List<Driver> findByStatus(DriverStatus status) {
+        return store.values().stream()
+                .filter(driver -> driver.getStatus() == status)
+                .toList();
+    }
+
     @Override
     public boolean deleteById(Long id) {
         findById(id).ifPresent(driver -> {

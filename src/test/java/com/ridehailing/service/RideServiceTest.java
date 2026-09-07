@@ -43,7 +43,10 @@ class RideServiceTest {
                 new NearestDriverStrategy(new DistanceCalculator()),
                 5.0);
         PricingService pricingService = new PricingService(
-                (carType, distance) -> new BigDecimal("100.00"));
+                (carType, distance) -> distance.multiply(
+                        carType == CarType.HATCHBACK
+                                ? new BigDecimal("10")
+                                : new BigDecimal("20")));
         rideService = new RideService(
                 userService,
                 driverService,
@@ -95,6 +98,30 @@ class RideServiceTest {
     }
 
     @Test
+    void request_hatchbackFallsBackToSedanWithoutUpgradeSurcharge() {
+        var requested = rideService.requestRide(
+                1L,
+                new RequestRideRequest(0.0, 0.0, 3.0, 4.0, CarType.HATCHBACK, null));
+
+        assertThat(requested.requestedCarType()).isEqualTo(CarType.HATCHBACK);
+        assertThat(requested.assignedCarType()).isEqualTo(CarType.SEDAN);
+        assertThat(requested.finalPayableFare()).isEqualByComparingTo("50.00");
+    }
+
+    @Test
+    void end_recalculatesFareUsingFinalDestination() {
+        var ride = rideService.requestRide(
+                1L, new RequestRideRequest(0.0, 0.0, 3.0, 4.0, CarType.SEDAN, null));
+        rideService.acceptRide(1L, ride.rideId());
+
+        var completed = rideService.endRide(
+                1L, ride.rideId(), new EndRideRequest(6.0, 8.0));
+
+        assertThat(completed.baseFare()).isEqualByComparingTo("200.00");
+        assertThat(completed.finalPayableFare()).isEqualByComparingTo("200.00");
+    }
+
+    @Test
     void accept_rejectsDriverAlreadyBusyAndWrongDriver() {
         var first = rideService.requestRide(
                 1L, new RequestRideRequest(0.0, 0.0, 1.0, 1.0, CarType.SEDAN, null));
@@ -125,14 +152,12 @@ class RideServiceTest {
         userService.register(new RegisterUserRequest("Maya", "112"));
         var first = rideService.requestRide(
                 1L, new RequestRideRequest(0.0, 0.0, 1.0, 1.0, CarType.SEDAN, null));
-        var second = rideService.requestRide(
-                2L, new RequestRideRequest(0.0, 0.0, 2.0, 2.0, CarType.SEDAN, null));
 
         var executor = Executors.newFixedThreadPool(2);
         try {
             List<Callable<Boolean>> attempts = List.of(
                     () -> acceptSuccessfully(1L, first.rideId()),
-                    () -> acceptSuccessfully(1L, second.rideId()));
+                    () -> acceptSuccessfully(1L, first.rideId()));
 
             long successfulAccepts = executor.invokeAll(attempts).stream()
                     .filter(future -> {

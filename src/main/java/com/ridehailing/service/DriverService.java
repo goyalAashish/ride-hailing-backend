@@ -1,10 +1,12 @@
 package com.ridehailing.service;
 
 import com.ridehailing.domain.Driver;
+import com.ridehailing.domain.Location;
 import com.ridehailing.domain.Vehicle;
 import com.ridehailing.domain.enums.DriverStatus;
 import com.ridehailing.dto.request.RegisterDriverRequest;
 import com.ridehailing.dto.response.DriverResponse;
+import com.ridehailing.exception.BadRequestException;
 import com.ridehailing.exception.DuplicateResourceException;
 import com.ridehailing.exception.ResourceNotFoundException;
 import com.ridehailing.repository.DriverRepository;
@@ -52,6 +54,17 @@ public class DriverService {
         Driver driver = getRequired(driverId);
         synchronized (driver) {
             driver.setStatus(DriverStatus.OFFLINE);
+        }
+    }
+
+    public DriverResponse updateLocation(Long driverId, double x, double y) {
+        if (!Double.isFinite(x) || !Double.isFinite(y)) {
+            throw new BadRequestException("INVALID_LOCATION", "Location coordinates must be finite");
+        }
+        Driver driver = getRequired(driverId);
+        synchronized (driver) {
+            driver.setCurrentLocation(new Location(x, y));
+            return DriverResponse.from(driverRepository.save(driver));
         }
     }
 }

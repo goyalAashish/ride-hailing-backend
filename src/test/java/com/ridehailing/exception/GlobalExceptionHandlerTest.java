@@ -23,13 +23,7 @@ class GlobalExceptionHandlerTest {
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
 
     @Mock
-    private MethodArgumentNotValidException methodArgumentNotValidException;
-
-    @Mock
     private BindingResult bindingResult;
-
-    @Mock
-    private MissingRequestHeaderException missingRequestHeaderException;
 
     @Test
     void resourceNotFoundException_mapsToHttp404() {
@@ -69,8 +63,9 @@ class GlobalExceptionHandlerTest {
     void validationException_collectsAllFieldErrorsInto400() {
         FieldError fieldError1 = new FieldError("request", "phone", "must not be blank");
         FieldError fieldError2 = new FieldError("request", "name", "must not be blank");
-        when(methodArgumentNotValidException.getBindingResult()).thenReturn(bindingResult);
         when(bindingResult.getFieldErrors()).thenReturn(List.of(fieldError1, fieldError2));
+        MethodArgumentNotValidException methodArgumentNotValidException =
+                new MethodArgumentNotValidException(null, bindingResult);
 
         ResponseEntity<ApiResponse<Void>> response = handler.handleValidationException(methodArgumentNotValidException);
 
@@ -82,7 +77,8 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void missingRequestHeader_mapsToHttp400() {
-        when(missingRequestHeaderException.getHeaderName()).thenReturn("X-User-Id");
+        MissingRequestHeaderException missingRequestHeaderException =
+                new MissingRequestHeaderException("X-User-Id", null);
 
         ResponseEntity<ApiResponse<Void>> response = handler.handleMissingHeader(missingRequestHeaderException);
 
