@@ -3,9 +3,12 @@ package com.ridehailing.controller;
 import com.ridehailing.domain.enums.CarType;
 import com.ridehailing.domain.enums.DriverStatus;
 import com.ridehailing.dto.response.DriverResponse;
+import com.ridehailing.dto.response.PageResponse;
+import com.ridehailing.dto.response.RideResponse;
 import com.ridehailing.exception.DuplicateResourceException;
 import com.ridehailing.exception.GlobalExceptionHandler;
 import com.ridehailing.service.DriverService;
+import com.ridehailing.service.RideHistoryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -17,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -29,6 +33,9 @@ class DriverControllerTest {
 
     @MockBean
     private DriverService driverService;
+
+    @MockBean
+    private RideHistoryService rideHistoryService;
 
     @Test
     void register_returnsHttp200Envelope() throws Exception {
@@ -81,5 +88,19 @@ class DriverControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("DUPLICATE_RESOURCE"));
+    }
+
+    @Test
+    void history_returnsPaginatedEnvelope() throws Exception {
+        when(rideHistoryService.driverHistory(1L, 0, 10))
+                .thenReturn(new PageResponse<>(java.util.List.<RideResponse>of(), 0, 10, 0, 0, true, true));
+
+        mockMvc.perform(get("/api/v1/drivers/rides/history")
+                        .header("X-Driver-Id", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statusCode").value(200))
+                .andExpect(jsonPath("$.data.page").value(0))
+                .andExpect(jsonPath("$.data.size").value(10))
+                .andExpect(jsonPath("$.data.content").isEmpty());
     }
 }
